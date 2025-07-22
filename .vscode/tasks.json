@@ -1,0 +1,96 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "👀 Aperçu (6 versets numérotés)",
+			"type": "shell",
+			"command": "D:/projects/versets/.venv/Scripts/python.exe",
+			"args": [
+				"apercu.py"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "🧪 Démonstration (20 versets)",
+			"type": "shell",
+			"command": "D:/projects/versets/.venv/Scripts/python.exe",
+			"args": [
+				"demo_simple.py"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "🔬 Test Final (100 versets)",
+			"type": "shell",
+			"command": "D:/projects/versets/.venv/Scripts/python.exe",
+			"args": [
+				"test_final.py"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "🎯 Génération Complète (1000 versets)",
+			"type": "shell",
+			"command": "D:/projects/versets/.venv/Scripts/python.exe",
+			"args": [
+				"generateur_versets.py"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "📦 Installer les dépendances",
+			"type": "shell",
+			"command": "D:/projects/versets/.venv/Scripts/pip.exe",
+			"args": [
+				"install",
+				"-r",
+				"requirements.txt"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "📂 Ouvrir le dossier output",
+			"type": "shell",
+			"command": "explorer",
+			"args": [
+				"output"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "📊 Informations du projet",
+			"type": "shell",
+			"command": "D:/projects/versets/.venv/Scripts/python.exe",
+			"args": [
+				"info.py"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "🧹 Nettoyer les fichiers générés",
+			"type": "shell",
+			"command": "D:/projects/versets/.venv/Scripts/python.exe",
+			"args": [
+				"info.py",
+				"clean"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
