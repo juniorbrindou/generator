@@ -52,6 +52,20 @@
         .column-tag .unique-indicator.unique-active {
             color: #198754;
         }
+        .column-tag .min-length-indicator {
+            margin-left: 2px;
+            margin-right: 4px;
+            cursor: pointer;
+            font-size: 0.65rem;
+            background-color: #e3f2fd;
+            color: #1976d2;
+            padding: 1px 3px;
+            border-radius: 6px;
+            border: 1px solid #bbdefb;
+        }
+        .column-tag .min-length-indicator:hover {
+            background-color: #bbdefb;
+        }
         .column-tag[data-unique="true"] {
             background-color: #d1e7dd;
             border: 1px solid #badbcc;
@@ -100,8 +114,15 @@
                                         <i class="bi bi-123 me-1"></i>Nombre de lignes
                                     </label>
                                     <input type="number" class="form-control" id="nombre_lignes" 
-                                           value="1000" min="1" max="1000000">
-                                    <div class="form-text">Entre 1 et 1,000,000 de lignes</div>
+                                           value="1000" min="1" max="50000000">
+                                    <div class="form-text">
+                                        <small>
+                                            <strong>Volumes supportés:</strong><br>
+                                            • <strong>1-1M lignes</strong>: Mode standard avec unicité garantie<br>
+                                            • <strong>1M-10M lignes</strong>: Mode optimisé (chunks + GC)<br>
+                                            • <strong>10M+ lignes</strong>: Mode ultra-rapide (unicité non garantie)
+                                        </small>
+                                    </div>
                                 </div>
 
                                 <div class="mb-3">
@@ -155,25 +176,28 @@
                                     </div>
                                     <div id="colonnes-container">
                                         <!-- Les colonnes seront ajoutées ici -->
-                                        <span class="column-tag" data-unique="false">
+                                        <span class="column-tag" data-unique="false" data-min-length="3">
                                             Nom
                                             <span class="unique-indicator" onclick="toggleUnique(this)" title="Cliquez pour rendre unique">
                                                 <i class="bi bi-asterisk text-muted"></i>
                                             </span>
+                                            <span class="min-length-indicator" onclick="editMinLength(this)" title="Longueur minimum: 3 caractères">3+</span>
                                             <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
                                         </span>
-                                        <span class="column-tag" data-unique="true">
+                                        <span class="column-tag" data-unique="true" data-min-length="8">
                                             Email
                                             <span class="unique-indicator unique-active" onclick="toggleUnique(this)" title="Champ unique">
                                                 <i class="bi bi-check-circle text-success"></i>
                                             </span>
+                                            <span class="min-length-indicator" onclick="editMinLength(this)" title="Longueur minimum: 8 caractères">8+</span>
                                             <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
                                         </span>
-                                        <span class="column-tag" data-unique="false">
+                                        <span class="column-tag" data-unique="false" data-min-length="10">
                                             Telephone
                                             <span class="unique-indicator" onclick="toggleUnique(this)" title="Cliquez pour rendre unique">
                                                 <i class="bi bi-asterisk text-muted"></i>
                                             </span>
+                                            <span class="min-length-indicator" onclick="editMinLength(this)" title="Longueur minimum: 10 caractères">10+</span>
                                             <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
                                         </span>
                                     </div>
@@ -212,8 +236,10 @@
                                     <div>Taille estimée: <span id="taille-estimee">~50 KB</span></div>
                                     <div>Temps estimé: <span id="temps-estime">< 1 seconde</span></div>
                                     <div>Colonnes: <span id="nb-colonnes">3</span></div>
+                                    <div>Mode: <span id="mode-generation">Standard</span></div>
                                 </small>
                             </div>
+                            <div id="alerte-gros-volume" style="display: none;"></div>
                         </div>
                     </div>
                 </div>
@@ -331,7 +357,7 @@
             
             // Vérifier si la colonne existe déjà
             const existant = Array.from(container.children).some(child => 
-                child.textContent.replace('×', '').replace('✓', '').replace('*', '').trim() === nom
+                child.textContent.replace('×', '').replace('✓', '').replace('*', '').replace(/\d+\+/g, '').trim() === nom
             );
             
             if (!existant) {
@@ -343,14 +369,30 @@
                 const champsUniques = ['email', 'id', 'username', 'login', 'cle', 'key'];
                 const isUnique = champsUniques.some(field => nom.toLowerCase().includes(field));
                 
+                // Définir la longueur minimum par défaut selon le type de champ
+                let minLength = 3; // Par défaut
+                const nomLower = nom.toLowerCase();
+                if (nomLower.includes('email') || nomLower.includes('mail')) minLength = 8;
+                else if (nomLower.includes('tel') || nomLower.includes('phone')) minLength = 10;
+                else if (nomLower.includes('adresse') || nomLower.includes('address')) minLength = 15;
+                else if (nomLower.includes('entreprise') || nomLower.includes('company')) minLength = 5;
+                else if (nomLower.includes('ville') || nomLower.includes('city')) minLength = 4;
+                else if (nomLower.includes('code') && nomLower.includes('postal')) minLength = 5;
+                else if (nomLower.includes('prenom') || nomLower.includes('firstname')) minLength = 3;
+                else if (nomLower.includes('nom') || nomLower.includes('name')) minLength = 3;
+                else if (nomLower.includes('date')) minLength = 10;
+                else if (nomLower.includes('id')) minLength = 1;
+                
                 if (isUnique) {
                     span.setAttribute('data-unique', 'true');
                 }
+                span.setAttribute('data-min-length', minLength);
                 
                 span.innerHTML = `${nom}
                     <span class="unique-indicator ${isUnique ? 'unique-active' : ''}" onclick="toggleUnique(this)" title="${isUnique ? 'Champ unique' : 'Cliquez pour rendre unique'}">
                         <i class="bi bi-${isUnique ? 'check-circle text-success' : 'asterisk text-muted'}"></i>
                     </span>
+                    <span class="min-length-indicator" onclick="editMinLength(this)" title="Longueur minimum: ${minLength} caractères">${minLength}+</span>
                     <span class="remove-btn" onclick="supprimerColonne(this)">×</span>`;
                 container.appendChild(span);
                 
@@ -385,6 +427,29 @@
             }
         }
 
+        function editMinLength(element) {
+            const columnTag = element.parentElement;
+            const currentMinLength = parseInt(columnTag.getAttribute('data-min-length') || '0');
+            
+            // Demander la nouvelle longueur minimum
+            const newMinLength = prompt(
+                `Longueur minimum pour cette colonne:\n\n(Actuellement: ${currentMinLength} caractères)`,
+                currentMinLength
+            );
+            
+            if (newMinLength !== null) {
+                const minLength = parseInt(newMinLength) || 0;
+                if (minLength >= 0) {
+                    columnTag.setAttribute('data-min-length', minLength);
+                    element.textContent = minLength > 0 ? `${minLength}+` : '0';
+                    element.setAttribute('title', `Longueur minimum: ${minLength} caractères`);
+                    
+                    updateEstimations();
+                    updatePreview();
+                }
+            }
+        }
+
         function supprimerColonne(element) {
             element.parentElement.remove();
             updateEstimations();
@@ -401,8 +466,9 @@
         function obtenirColonnes() {
             const container = document.getElementById('colonnes-container');
             return Array.from(container.children).map(child => ({
-                nom: child.textContent.replace('×', '').replace('✓', '').replace('*', '').trim(),
-                unique: child.getAttribute('data-unique') === 'true'
+                nom: child.textContent.replace('×', '').replace('✓', '').replace('*', '').replace(/\d+\+/g, '').trim(),
+                unique: child.getAttribute('data-unique') === 'true',
+                minLength: parseInt(child.getAttribute('data-min-length') || '0')
             })).filter(col => col.nom);
         }
 
@@ -416,13 +482,48 @@
             const colonnes = obtenirColonnes();
             
             // Estimation de la taille (approximative)
-            const tailleEstimee = nombreLignes * colonnes.length * 20; // ~20 caractères par cellule
-            const tempsEstime = nombreLignes > 100000 ? '10-30 secondes' : 
-                              nombreLignes > 10000 ? '1-5 secondes' : '< 1 seconde';
+            const tailleEstimee = nombreLignes * colonnes.length * 25; // ~25 caractères par cellule avec min length
+            let tempsEstime = '< 1 seconde';
+            let mode = 'Standard';
+            
+            if (nombreLignes > 10000000) {
+                tempsEstime = '10-30 minutes';
+                mode = 'Ultra-rapide (pas d\'unicité garantie)';
+            } else if (nombreLignes > 1000000) {
+                tempsEstime = '2-5 minutes';
+                mode = 'Optimisé (chunks + garbage collection)';
+            } else if (nombreLignes > 100000) {
+                tempsEstime = '10-30 secondes';
+                mode = 'Standard';
+            } else if (nombreLignes > 10000) {
+                tempsEstime = '1-5 secondes';
+                mode = 'Standard';
+            }
             
             document.getElementById('taille-estimee').textContent = formatFileSize(tailleEstimee);
             document.getElementById('temps-estime').textContent = tempsEstime;
             document.getElementById('nb-colonnes').textContent = colonnes.length;
+            document.getElementById('mode-generation').textContent = mode;
+            
+            // Alerte pour les très gros volumes
+            const alerteContainer = document.getElementById('alerte-gros-volume');
+            if (nombreLignes > 1000000) {
+                const tailleGB = tailleEstimee / (1024 * 1024 * 1024);
+                alerteContainer.innerHTML = `
+                    <div class="alert alert-warning mt-2">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Gros volume détecté !</strong><br>
+                        <small>
+                            • Taille estimée: ~${tailleGB.toFixed(2)} GB<br>
+                            • Mode: ${mode}<br>
+                            • Assurez-vous d'avoir suffisamment d'espace disque
+                        </small>
+                    </div>
+                `;
+                alerteContainer.style.display = 'block';
+            } else {
+                alerteContainer.style.display = 'none';
+            }
         }
 
         // Mise à jour de l'aperçu

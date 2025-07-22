@@ -168,9 +168,26 @@ def api_list_files():
         return jsonify({'error': str(e)}), 500
 
 def generer_csv_bulk(nombre_lignes, colonnes_config, format_donnees, separateur=','):
-    """Génère un fichier CSV avec des données en masse"""
+    """Génère un fichier CSV avec des données en masse - Optimisé pour gros volumes"""
     from faker import Faker
+    import gc
+    import time
+    
     fake = Faker('fr_FR')  # Données en français
+    
+    # Vérifications préalables pour gros volumes
+    if nombre_lignes > 10000000:  # 10M+
+        return generer_csv_tres_gros_volume(nombre_lignes, colonnes_config, format_donnees, separateur)
+    elif nombre_lignes > 1000000:  # 1M+
+        return generer_csv_gros_volume(nombre_lignes, colonnes_config, format_donnees, separateur)
+    
+    # Version standard pour < 1M lignes
+    return generer_csv_standard(nombre_lignes, colonnes_config, format_donnees, separateur)
+
+def generer_csv_standard(nombre_lignes, colonnes_config, format_donnees, separateur=','):
+    """Version standard pour moins d'1 million de lignes"""
+    from faker import Faker
+    fake = Faker('fr_FR')
     
     # Extraire les noms des colonnes
     colonnes_noms = [col['nom'] if isinstance(col, dict) else col for col in colonnes_config]
@@ -193,10 +210,7 @@ def generer_csv_bulk(nombre_lignes, colonnes_config, format_donnees, separateur=
     
     # Générer les données
     with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-        # Utiliser le séparateur personnalisé
         writer = csv.writer(csvfile, delimiter=separateur)
-        
-        # Écrire l'en-tête
         writer.writerow(colonnes_noms)
         
         # Générer les lignes de données
@@ -207,9 +221,11 @@ def generer_csv_bulk(nombre_lignes, colonnes_config, format_donnees, separateur=
                 if isinstance(col_config, dict):
                     colonne = col_config['nom']
                     est_unique = col_config.get('unique', False)
+                    min_length = col_config.get('minLength', 0)
                 else:
                     colonne = col_config
                     est_unique = False
+                    min_length = 0
                 
                 colonne_lower = colonne.lower()
                 valeur = None
@@ -222,14 +238,19 @@ def generer_csv_bulk(nombre_lignes, colonnes_config, format_donnees, separateur=
                 else:
                     valeur = f'{colonne}_{i+1}'
                 
+                # Assurer la longueur minimum
+                valeur = assurer_longueur_minimum(str(valeur), min_length, colonne_lower, fake)
+                
                 # Garantir l'unicité si nécessaire
                 if est_unique:
                     tentatives = 0
                     while valeur in valeurs_uniques[colonne] and tentatives < 100:
                         if format_donnees == 'fake':
-                            valeur = generer_valeur_fake(fake, colonne, colonne_lower, i + tentatives * 1000)
+                            base_valeur = generer_valeur_fake(fake, colonne, colonne_lower, i + tentatives * 1000)
+                            valeur = assurer_longueur_minimum(str(base_valeur), min_length, colonne_lower, fake)
                         else:
                             valeur = f"{valeur}_{tentatives:03d}"
+                            valeur = assurer_longueur_minimum(valeur, min_length, colonne_lower, fake)
                         tentatives += 1
                     
                     valeurs_uniques[colonne].add(valeur)
@@ -245,6 +266,56 @@ def generer_csv_bulk(nombre_lignes, colonnes_config, format_donnees, separateur=
     print(f"✅ CSV généré: {csv_path}")
     return csv_path
 
+def assurer_longueur_minimum(valeur, min_length, type_colonne, faker_instance):
+    """Assure qu'une valeur respecte la longueur minimum"""
+    if min_length <= 0 or len(valeur) >= min_length:
+        return valeur
+    
+    # Stratégies différentes selon le type de colonne
+    if 'email' in type_colonne or 'mail' in type_colonne:
+        # Pour les emails, ajouter des caractères avant le @
+        if '@' in valeur:
+            partie_avant, partie_apres = valeur.split('@', 1)
+            while len(valeur) < min_length:
+                partie_avant += faker_instance.random_letter().lower()
+                valeur = partie_avant + '@' + partie_apres
+        else:
+            valeur += '@example.com'
+            
+    elif 'tel' in type_colonne or 'phone' in type_colonne:
+        # Pour les téléphones, ajouter des chiffres
+        while len(valeur) < min_length:
+            valeur += str(faker_instance.random_digit())
+            
+    elif 'nom' in type_colonne or 'name' in type_colonne or 'prenom' in type_colonne:
+        # Pour les noms, ajouter des lettres
+        while len(valeur) < min_length:
+            valeur += faker_instance.random_letter().lower()
+            
+    elif 'adresse' in type_colonne or 'address' in type_colonne:
+        # Pour les adresses, ajouter des mots
+        while len(valeur) < min_length:
+            valeur += ' ' + faker_instance.word()
+            
+    elif 'ville' in type_colonne or 'city' in type_colonne:
+        # Pour les villes, ajouter des suffixes
+        suffixes = ['ville', 'sur-Seine', 'les-Bains', 'en-Provence']
+        while len(valeur) < min_length and suffixes:
+            valeur += '-' + suffixes.pop(0)
+            
+    else:
+        # Stratégie générale : répéter ou ajouter des caractères
+        if valeur.isdigit():
+            # Pour les nombres, ajouter des chiffres
+            while len(valeur) < min_length:
+                valeur += str(faker_instance.random_digit())
+        else:
+            # Pour le texte, ajouter des caractères alphanumériques
+            while len(valeur) < min_length:
+                valeur += faker_instance.random_letter().lower()
+    
+    return valeur
+
 def generer_valeur_sequence(colonne, colonne_lower, index):
     """Génère une valeur séquentielle"""
     if 'nom' in colonne_lower:
@@ -254,7 +325,7 @@ def generer_valeur_sequence(colonne, colonne_lower, index):
     elif 'tel' in colonne_lower or 'phone' in colonne_lower:
         return f'06{(index+1):08d}'
     elif 'id' in colonne_lower:
-        return index + 1
+        return str(index + 1)
     else:
         return f'{colonne}{(index+1):06d}'
 
@@ -279,9 +350,256 @@ def generer_valeur_fake(fake, colonne, colonne_lower, index):
     elif 'date' in colonne_lower:
         return fake.date()
     elif 'id' in colonne_lower:
-        return index + 1
+        return str(index + 1)
     else:
         return fake.word()
+
+def generer_csv_gros_volume(nombre_lignes, colonnes_config, format_donnees, separateur=','):
+    """Version optimisée pour 1-10 millions de lignes"""
+    from faker import Faker
+    import gc
+    import time
+    
+    print(f"🚀 Mode GROS VOLUME activé pour {nombre_lignes:,} lignes")
+    print("⚡ Optimisations: Garbage collection + Écriture par chunks")
+    
+    fake = Faker('fr_FR')
+    colonnes_noms = [col['nom'] if isinstance(col, dict) else col for col in colonnes_config]
+    
+    # Créer le nom du fichier
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    extension = 'tsv' if separateur == '\t' else 'csv'
+    filename = f'bulk_data_GROS_{nombre_lignes}_lignes_{timestamp}.{extension}'
+    csv_path = os.path.join('output', filename)
+    
+    if not os.path.exists('output'):
+        os.makedirs('output')
+    
+    # Pour les gros volumes, on utilise des compteurs au lieu de sets
+    compteurs_uniques = {}
+    for col_config in colonnes_config:
+        if isinstance(col_config, dict) and col_config.get('unique', False):
+            compteurs_uniques[col_config['nom']] = 0
+    
+    chunk_size = 50000  # Traiter par chunks de 50k lignes
+    chunks_total = (nombre_lignes + chunk_size - 1) // chunk_size
+    
+    print(f"📊 Génération en {chunks_total} chunks de {chunk_size:,} lignes")
+    
+    debut = time.time()
+    
+    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile, delimiter=separateur)
+        writer.writerow(colonnes_noms)
+        
+        for chunk_num in range(chunks_total):
+            debut_chunk = chunk_num * chunk_size
+            fin_chunk = min(debut_chunk + chunk_size, nombre_lignes)
+            
+            print(f"🔄 Chunk {chunk_num+1}/{chunks_total}: lignes {debut_chunk+1:,}-{fin_chunk:,}")
+            
+            # Générer le chunk en mémoire
+            chunk_data = []
+            for i in range(debut_chunk, fin_chunk):
+                ligne = []
+                for col_config in colonnes_config:
+                    valeur = generer_valeur_optimisee_gros_volume(
+                        col_config, format_donnees, fake, i, compteurs_uniques
+                    )
+                    ligne.append(valeur)
+                chunk_data.append(ligne)
+            
+            # Écrire le chunk
+            writer.writerows(chunk_data)
+            
+            # Libérer la mémoire
+            del chunk_data
+            gc.collect()
+            
+            # Progression
+            progression = ((chunk_num + 1) / chunks_total) * 100
+            temps_ecoule = time.time() - debut
+            print(f"   ✅ {progression:.1f}% - {temps_ecoule:.1f}s écoulées")
+    
+    temps_total = time.time() - debut
+    vitesse = nombre_lignes / temps_total
+    print(f"🎉 Génération terminée en {temps_total:.1f}s")
+    print(f"⚡ Vitesse: {vitesse:,.0f} lignes/seconde")
+    print(f"📁 Fichier: {csv_path}")
+    
+    return csv_path
+
+def generer_csv_tres_gros_volume(nombre_lignes, colonnes_config, format_donnees, separateur=','):
+    """Version ultra-optimisée pour 10+ millions de lignes"""
+    from faker import Faker
+    import gc
+    import time
+    import os
+    
+    print(f"🚀 Mode TRÈS GROS VOLUME activé pour {nombre_lignes:,} lignes")
+    print("⚡ Optimisations: Pas d'unicité + Générateurs pré-calculés")
+    
+    # Vérifier l'espace disque disponible
+    taille_estimee = nombre_lignes * len(colonnes_config) * 20  # ~20 bytes/cellule
+    taille_estimee_gb = taille_estimee / (1024**3)
+    print(f"💾 Taille estimée: {taille_estimee_gb:.2f} GB")
+    
+    if taille_estimee_gb > 10:
+        print("⚠️  ATTENTION: Fichier très volumineux (>10GB)")
+        print("💡 Conseil: Utilisez un SSD et vérifiez l'espace libre")
+    
+    fake = Faker('fr_FR')
+    colonnes_noms = [col['nom'] if isinstance(col, dict) else col for col in colonnes_config]
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    extension = 'tsv' if separateur == '\t' else 'csv'
+    filename = f'bulk_data_MEGA_{nombre_lignes}_lignes_{timestamp}.{extension}'
+    csv_path = os.path.join('output', filename)
+    
+    if not os.path.exists('output'):
+        os.makedirs('output')
+    
+    # Mode ultra-rapide: pas d'unicité garantie pour éviter la surcharge mémoire
+    print("🔥 Mode ultra-rapide: unicité non garantie (performance prioritaire)")
+    
+    chunk_size = 100000  # Chunks plus gros pour très gros volumes
+    chunks_total = (nombre_lignes + chunk_size - 1) // chunk_size
+    
+    print(f"📊 Génération en {chunks_total} chunks de {chunk_size:,} lignes")
+    
+    debut = time.time()
+    
+    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile, delimiter=separateur)
+        writer.writerow(colonnes_noms)
+        
+        for chunk_num in range(chunks_total):
+            debut_chunk = chunk_num * chunk_size
+            fin_chunk = min(debut_chunk + chunk_size, nombre_lignes)
+            
+            if chunk_num % 10 == 0:  # Affichage moins fréquent
+                print(f"🔄 Chunk {chunk_num+1}/{chunks_total}: {debut_chunk+1:,}-{fin_chunk:,}")
+            
+            # Générer et écrire directement (sans stocker en mémoire)
+            for i in range(debut_chunk, fin_chunk):
+                ligne = []
+                for col_config in colonnes_config:
+                    valeur = generer_valeur_ultra_rapide(col_config, format_donnees, i)
+                    ligne.append(valeur)
+                writer.writerow(ligne)
+            
+            # Garbage collection moins fréquent
+            if chunk_num % 10 == 0:
+                gc.collect()
+                
+            # Progression moins fréquente
+            if chunk_num % 50 == 0:
+                progression = ((chunk_num + 1) / chunks_total) * 100
+                temps_ecoule = time.time() - debut
+                vitesse_actuelle = (chunk_num + 1) * chunk_size / temps_ecoule
+                temps_reste = (chunks_total - chunk_num - 1) * chunk_size / vitesse_actuelle
+                print(f"   ⚡ {progression:.1f}% - {vitesse_actuelle:,.0f} lignes/s - ETA: {temps_reste:.1f}s")
+    
+    temps_total = time.time() - debut
+    vitesse = nombre_lignes / temps_total
+    taille_fichier = os.path.getsize(csv_path) / (1024**2)  # MB
+    
+    print(f"🎉 TRÈS GROS VOLUME généré en {temps_total:.1f}s")
+    print(f"⚡ Vitesse finale: {vitesse:,.0f} lignes/seconde")
+    print(f"📁 Taille finale: {taille_fichier:.1f} MB")
+    print(f"💾 Fichier: {csv_path}")
+    
+    return csv_path
+
+def generer_valeur_optimisee_gros_volume(col_config, format_donnees, fake, index, compteurs_uniques):
+    """Génération optimisée pour gros volumes avec unicité limitée"""
+    if isinstance(col_config, dict):
+        colonne = col_config['nom']
+        est_unique = col_config.get('unique', False)
+        min_length = col_config.get('minLength', 0)
+    else:
+        colonne = col_config
+        est_unique = False
+        min_length = 0
+    
+    colonne_lower = colonne.lower()
+    
+    # Pour les champs uniques en gros volume, on utilise l'index + compteur
+    if est_unique and colonne in compteurs_uniques:
+        base_index = compteurs_uniques[colonne]
+        compteurs_uniques[colonne] += 1
+        
+        if format_donnees == 'sequence':
+            if 'email' in colonne_lower:
+                valeur = f'user{base_index:08d}@example.com'
+            elif 'id' in colonne_lower:
+                valeur = str(base_index + 1)
+            else:
+                valeur = f'{colonne}{base_index:08d}'
+        else:
+            # Mode fake avec garantie d'unicité via index
+            if 'email' in colonne_lower:
+                valeur = f'user{base_index:08d}@{fake.domain_name()}'
+            elif 'nom' in colonne_lower:
+                valeur = f'{fake.last_name()}{base_index:04d}'
+            else:
+                valeur = f'{fake.word()}{base_index:06d}'
+    else:
+        # Génération normale
+        if format_donnees == 'sequence':
+            valeur = generer_valeur_sequence(colonne, colonne_lower, index)
+        elif format_donnees == 'fake':
+            valeur = generer_valeur_fake(fake, colonne, colonne_lower, index)
+        else:
+            valeur = f'{colonne}_{index+1}'
+    
+    # Assurer la longueur minimum
+    return assurer_longueur_minimum(str(valeur), min_length, colonne_lower, fake)
+
+def generer_valeur_ultra_rapide(col_config, format_donnees, index):
+    """Génération ultra-rapide sans Faker pour très gros volumes"""
+    if isinstance(col_config, dict):
+        colonne = col_config['nom']
+        min_length = col_config.get('minLength', 0)
+    else:
+        colonne = col_config
+        min_length = 0
+    
+    colonne_lower = colonne.lower()
+    
+    # Génération ultra-simple et rapide
+    if format_donnees == 'sequence':
+        if 'email' in colonne_lower:
+            valeur = f'user{index+1:08d}@example.com'
+        elif 'tel' in colonne_lower or 'phone' in colonne_lower:
+            valeur = f'06{index+1:08d}'
+        elif 'nom' in colonne_lower:
+            valeur = f'Nom{index+1:08d}'
+        elif 'id' in colonne_lower:
+            valeur = str(index + 1)
+        else:
+            valeur = f'{colonne}{index+1:08d}'
+    else:
+        # Mode "fake" simplifié (sans vraie génération)
+        if 'email' in colonne_lower:
+            domaines = ['gmail.com', 'yahoo.fr', 'hotmail.com', 'outlook.fr']
+            domaine = domaines[index % len(domaines)]
+            valeur = f'user{index+1:08d}@{domaine}'
+        elif 'nom' in colonne_lower:
+            noms = ['Dupont', 'Martin', 'Bernard', 'Dubois', 'Thomas', 'Robert', 'Petit']
+            nom = noms[index % len(noms)]
+            valeur = f'{nom}{index+1:04d}'
+        elif 'ville' in colonne_lower:
+            villes = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice', 'Nantes', 'Strasbourg']
+            valeur = villes[index % len(villes)]
+        else:
+            valeur = f'{colonne}_{index+1:08d}'
+    
+    # Assurer longueur minimum de façon ultra-simple
+    while len(valeur) < min_length:
+        valeur += str((index % 10))
+    
+    return valeur
 
 if __name__ == '__main__':
     print("🌐 === BULK GENERATOR - INTERFACE WEB ===")
