@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur CSV - Bulk Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+            color: white;
+            padding: 3rem 0;
+        }
+        .generator-card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+        .preview-area {
+            background-color: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            min-height: 200px;
+        }
+        .progress-container {
+            display: none;
+        }
+        .result-container {
+            display: none;
+        }
+        .column-tag {
+            display: inline-block;
+            background-color: #e9ecef;
+            border-radius: 15px;
+            padding: 5px 12px;
+            margin: 2px;
+            font-size: 0.875rem;
+        }
+        .column-tag .remove-btn {
+            margin-left: 8px;
+            color: #dc3545;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">
+                <i class="bi bi-arrow-left me-2"></i>Bulk Generator
+            </a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section text-center">
+        <div class="container">
+            <h1 class="display-5 fw-bold mb-3">
+                <i class="bi bi-file-earmark-spreadsheet-fill me-3"></i>
+                Générateur CSV en Masse
+            </h1>
+            <p class="lead">
+                Créez des fichiers CSV avec des centaines de milliers de lignes de données
+            </p>
+        </div>
+    </section>
+
+    <!-- Generator Section -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row">
+                <!-- Configuration Panel -->
+                <div class="col-lg-4">
+                    <div class="card generator-card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-gear-fill me-2"></i>Configuration
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="csv-form">
+                                <div class="mb-3">
+                                    <label for="nombre_lignes" class="form-label">
+                                        <i class="bi bi-123 me-1"></i>Nombre de lignes
+                                    </label>
+                                    <input type="number" class="form-control" id="nombre_lignes" 
+                                           value="1000" min="1" max="1000000">
+                                    <div class="form-text">Entre 1 et 1,000,000 de lignes</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="format_donnees" class="form-label">
+                                        <i class="bi bi-database me-1"></i>Type de données
+                                    </label>
+                                    <select class="form-select" id="format_donnees">
+                                        <option value="fake">Données réalistes (Faker)</option>
+                                        <option value="sequence">Données séquentielles</option>
+                                        <option value="custom">Données personnalisées</option>
+                                    </select>
+                                    <div class="form-text">
+                                        <small>
+                                            <strong>Réalistes:</strong> Noms, emails, téléphones vraisemblables<br>
+                                            <strong>Séquentielles:</strong> Nom001, Nom002, etc.<br>
+                                            <strong>Personnalisées:</strong> Format défini par vous
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        <i class="bi bi-columns me-1"></i>Colonnes du CSV
+                                    </label>
+                                    <div class="input-group mb-2">
+                                        <input type="text" class="form-control" id="nouvelle_colonne" 
+                                               placeholder="Nom de la colonne" onkeypress="handleEnterKey(event)">
+                                        <button type="button" class="btn btn-outline-success" onclick="ajouterColonne()">
+                                            <i class="bi bi-plus-lg"></i>
+                                        </button>
+                                    </div>
+                                    <div id="colonnes-container">
+                                        <!-- Les colonnes seront ajoutées ici -->
+                                        <span class="column-tag">
+                                            Nom
+                                            <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
+                                        </span>
+                                        <span class="column-tag">
+                                            Email
+                                            <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
+                                        </span>
+                                        <span class="column-tag">
+                                            Telephone
+                                            <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
+                                        </span>
+                                    </div>
+                                    <div class="form-text">
+                                        <small>
+                                            <strong>Colonnes suggérées:</strong>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="ajouterColonneSuggeree('Prenom')">Prenom</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="ajouterColonneSuggeree('Adresse')">Adresse</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="ajouterColonneSuggeree('Ville')">Ville</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="ajouterColonneSuggeree('CodePostal')">Code Postal</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="ajouterColonneSuggeree('Entreprise')">Entreprise</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="ajouterColonneSuggeree('DateNaissance')">Date</button>
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-success w-100 btn-lg">
+                                    <i class="bi bi-play-fill me-2"></i>Générer le CSV
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Stats Card -->
+                    <div class="card mt-4">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-calculator me-1"></i>Estimation
+                            </h6>
+                            <div id="estimation">
+                                <small class="text-muted">
+                                    <div>Taille estimée: <span id="taille-estimee">~50 KB</span></div>
+                                    <div>Temps estimé: <span id="temps-estime">< 1 seconde</span></div>
+                                    <div>Colonnes: <span id="nb-colonnes">3</span></div>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview/Result Panel -->
+                <div class="col-lg-8">
+                    <!-- Initial State -->
+                    <div class="card generator-card" id="preview-card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-eye me-2"></i>Aperçu
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="preview-area d-flex align-items-center justify-content-center">
+                                <div class="text-center">
+                                    <i class="bi bi-file-earmark-spreadsheet text-muted display-1"></i>
+                                    <p class="text-muted mt-3">
+                                        Configurez vos paramètres et cliquez sur "Générer le CSV"<br>
+                                        pour créer votre fichier
+                                    </p>
+                                    <div class="mt-4">
+                                        <h6 class="text-muted">Exemple d'aperçu:</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered" style="max-width: 400px; margin: 0 auto;">
+                                                <thead class="table-light">
+                                                    <tr id="preview-header">
+                                                        <th>Nom</th>
+                                                        <th>Email</th>
+                                                        <th>Telephone</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="preview-body">
+                                                    <tr>
+                                                        <td>Martin Dubois</td>
+                                                        <td>martin.dubois@example.fr</td>
+                                                        <td>06 12 34 56 78</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Sophie Leroy</td>
+                                                        <td>sophie.leroy@example.fr</td>
+                                                        <td>06 87 65 43 21</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="text-muted">...</td>
+                                                        <td class="text-muted">...</td>
+                                                        <td class="text-muted">...</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress State -->
+                    <div class="card generator-card progress-container" id="progress-card">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">
+                                <i class="bi bi-hourglass-split me-2"></i>Génération en cours...
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-warning mb-3 display-4" role="status">
+                                    <span class="visually-hidden">Génération...</span>
+                                </div>
+                                <p class="mb-3">Création du CSV en cours...</p>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning w-100" 
+                                         role="progressbar"></div>
+                                </div>
+                                <small class="text-muted mt-2 d-block" id="progress-text">
+                                    Initialisation...
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Success State -->
+                    <div class="card generator-card result-container" id="result-card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-check-circle-fill me-2"></i>CSV généré avec succès !
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row" id="result-content">
+                                <!-- Le contenu sera injecté par JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Gestion des colonnes
+        function ajouterColonne() {
+            const input = document.getElementById('nouvelle_colonne');
+            const nom = input.value.trim();
+            
+            if (nom) {
+                ajouterColonneSuggeree(nom);
+                input.value = '';
+            }
+        }
+
+        function ajouterColonneSuggeree(nom) {
+            const container = document.getElementById('colonnes-container');
+            
+            // Vérifier si la colonne existe déjà
+            const existant = Array.from(container.children).some(child => 
+                child.textContent.replace('×', '').trim() === nom
+            );
+            
+            if (!existant) {
+                const span = document.createElement('span');
+                span.className = 'column-tag';
+                span.innerHTML = `${nom} <span class="remove-btn" onclick="supprimerColonne(this)">×</span>`;
+                container.appendChild(span);
+                
+                updateEstimations();
+                updatePreview();
+            }
+        }
+
+        function supprimerColonne(element) {
+            element.parentElement.remove();
+            updateEstimations();
+            updatePreview();
+        }
+
+        function handleEnterKey(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                ajouterColonne();
+            }
+        }
+
+        function obtenirColonnes() {
+            const container = document.getElementById('colonnes-container');
+            return Array.from(container.children).map(child => 
+                child.textContent.replace('×', '').trim()
+            ).filter(nom => nom);
+        }
+
+        // Mise à jour des estimations
+        function updateEstimations() {
+            const nombreLignes = parseInt(document.getElementById('nombre_lignes').value) || 0;
+            const colonnes = obtenirColonnes();
+            
+            // Estimation de la taille (approximative)
+            const tailleEstimee = nombreLignes * colonnes.length * 20; // ~20 caractères par cellule
+            const tempsEstime = nombreLignes > 100000 ? '10-30 secondes' : 
+                              nombreLignes > 10000 ? '1-5 secondes' : '< 1 seconde';
+            
+            document.getElementById('taille-estimee').textContent = formatFileSize(tailleEstimee);
+            document.getElementById('temps-estime').textContent = tempsEstime;
+            document.getElementById('nb-colonnes').textContent = colonnes.length;
+        }
+
+        // Mise à jour de l'aperçu
+        function updatePreview() {
+            const colonnes = obtenirColonnes();
+            const formatDonnees = document.getElementById('format_donnees').value;
+            
+            // Mettre à jour l'en-tête
+            const header = document.getElementById('preview-header');
+            header.innerHTML = colonnes.map(col => `<th>${col}</th>`).join('');
+            
+            // Mettre à jour le corps (exemples)
+            const body = document.getElementById('preview-body');
+            const exemples = genererExemplesLignes(colonnes, formatDonnees, 2);
+            
+            body.innerHTML = exemples.map(ligne => 
+                `<tr>${ligne.map(cellule => `<td>${cellule}</td>`).join('')}</tr>`
+            ).join('') + 
+            `<tr>${colonnes.map(() => '<td class="text-muted">...</td>').join('')}</tr>`;
+        }
+
+        function genererExemplesLignes(colonnes, format, nombre) {
+            const exemples = [];
+            
+            for (let i = 0; i < nombre; i++) {
+                const ligne = colonnes.map(colonne => {
+                    const col = colonne.toLowerCase();
+                    
+                    if (format === 'sequence') {
+                        if (col.includes('nom')) return `Nom${(i+1).toString().padStart(3, '0')}`;
+                        if (col.includes('email')) return `user${(i+1).toString().padStart(3, '0')}@example.com`;
+                        if (col.includes('tel')) return `06${(i+1).toString().padStart(8, '0')}`;
+                        return `${colonne}${i+1}`;
+                    } else {
+                        // Format réaliste
+                        if (col.includes('nom')) return ['Martin Dubois', 'Sophie Leroy', 'Pierre Durant'][i] || 'Jean Dupont';
+                        if (col.includes('prenom')) return ['Martin', 'Sophie', 'Pierre'][i] || 'Jean';
+                        if (col.includes('email')) return ['martin.dubois@example.fr', 'sophie.leroy@example.fr'][i] || 'exemple@email.fr';
+                        if (col.includes('tel')) return ['06 12 34 56 78', '06 87 65 43 21'][i] || '06 00 00 00 00';
+                        if (col.includes('ville')) return ['Paris', 'Lyon', 'Marseille'][i] || 'Ville';
+                        if (col.includes('adresse')) return ['123 Rue de la Paix', '456 Avenue des Champs'][i] || 'Adresse';
+                        if (col.includes('entreprise')) return ['TechCorp', 'DataSoft'][i] || 'Entreprise';
+                        return `Valeur${i+1}`;
+                    }
+                });
+                exemples.push(ligne);
+            }
+            
+            return exemples;
+        }
+
+        // Écouteurs d'événements
+        document.getElementById('nombre_lignes').addEventListener('input', updateEstimations);
+        document.getElementById('format_donnees').addEventListener('change', updatePreview);
+
+        // Gestion du formulaire
+        document.getElementById('csv-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const colonnes = obtenirColonnes();
+            if (colonnes.length === 0) {
+                alert('Veuillez ajouter au moins une colonne');
+                return;
+            }
+            
+            // Afficher l'état de progression
+            document.getElementById('preview-card').style.display = 'none';
+            document.getElementById('result-card').style.display = 'none';
+            document.getElementById('progress-card').style.display = 'block';
+            
+            const formData = {
+                nombre_lignes: parseInt(document.getElementById('nombre_lignes').value),
+                colonnes: colonnes,
+                format: document.getElementById('format_donnees').value
+            };
+
+            try {
+                document.getElementById('progress-text').textContent = 'Génération des données...';
+                
+                const response = await fetch('/api/generate-csv', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Afficher le résultat
+                    document.getElementById('progress-card').style.display = 'none';
+                    document.getElementById('result-card').style.display = 'block';
+                    
+                    document.getElementById('result-content').innerHTML = `
+                        <div class="col-md-8">
+                            <h6><i class="bi bi-file-earmark-spreadsheet-fill text-success me-2"></i>${result.filename}</h6>
+                            <div class="row mt-3">
+                                <div class="col-sm-4">
+                                    <small class="text-muted">
+                                        <i class="bi bi-list-ol me-1"></i>Lignes: <strong>${result.lignes.toLocaleString()}</strong>
+                                    </small>
+                                </div>
+                                <div class="col-sm-4">
+                                    <small class="text-muted">
+                                        <i class="bi bi-columns me-1"></i>Colonnes: <strong>${colonnes.length}</strong>
+                                    </small>
+                                </div>
+                                <div class="col-sm-4">
+                                    <small class="text-muted">
+                                        <i class="bi bi-hdd me-1"></i>Taille: <strong>${formatFileSize(result.size)}</strong>
+                                    </small>
+                                </div>
+                            </div>
+                            <p class="text-success mt-2 mb-0">
+                                <i class="bi bi-check-circle-fill me-1"></i>${result.message}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="/download/${result.filename}" class="btn btn-success btn-lg">
+                                <i class="bi bi-download me-2"></i>Télécharger
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                // Afficher l'erreur
+                document.getElementById('progress-card').style.display = 'none';
+                document.getElementById('preview-card').style.display = 'block';
+                
+                alert('Erreur lors de la génération: ' + error.message);
+            }
+        });
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Initialiser
+        updateEstimations();
+        updatePreview();
+    </script>
+</body>
+</html>

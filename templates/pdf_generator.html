@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur PDF - Bulk Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+            color: white;
+            padding: 3rem 0;
+        }
+        .generator-card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+        .preview-area {
+            background-color: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            min-height: 200px;
+        }
+        .progress-container {
+            display: none;
+        }
+        .result-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-danger">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">
+                <i class="bi bi-arrow-left me-2"></i>Bulk Generator
+            </a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section text-center">
+        <div class="container">
+            <h1 class="display-5 fw-bold mb-3">
+                <i class="bi bi-file-earmark-pdf-fill me-3"></i>
+                Générateur PDF de Versets
+            </h1>
+            <p class="lead">
+                Créez des PDF contenant des milliers de petits papiers avec des versets bibliques
+            </p>
+        </div>
+    </section>
+
+    <!-- Generator Section -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row">
+                <!-- Configuration Panel -->
+                <div class="col-lg-4">
+                    <div class="card generator-card">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-gear-fill me-2"></i>Configuration
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="pdf-form">
+                                <div class="mb-3">
+                                    <label for="nombre_versets" class="form-label">
+                                        <i class="bi bi-123 me-1"></i>Nombre de versets
+                                    </label>
+                                    <input type="number" class="form-control" id="nombre_versets" 
+                                           value="{{ config.nombre_versets }}" min="1" max="10000">
+                                    <div class="form-text">Entre 1 et 10,000 versets</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        <i class="bi bi-grid me-1"></i>Disposition par page
+                                    </label>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <input type="number" class="form-control" id="papiers_ligne" 
+                                                   value="{{ config.papiers_par_ligne }}" min="1" max="10"
+                                                   placeholder="Largeur">
+                                        </div>
+                                        <div class="col-6">
+                                            <input type="number" class="form-control" id="papiers_colonne" 
+                                                   value="{{ config.papiers_par_colonne }}" min="1" max="15"
+                                                   placeholder="Hauteur">
+                                        </div>
+                                    </div>
+                                    <div class="form-text">
+                                        <span id="papiers-par-page">{{ config.papiers_par_ligne * config.papiers_par_colonne }}</span> papiers par page
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="afficher_numeros" 
+                                               {% if config.afficher_numeros %}checked{% endif %}>
+                                        <label class="form-check-label" for="afficher_numeros">
+                                            <i class="bi bi-hash me-1"></i>Afficher les numéros
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="style_decoratif" 
+                                               {% if config.style_decoratif %}checked{% endif %}>
+                                        <label class="form-check-label" for="style_decoratif">
+                                            <i class="bi bi-palette me-1"></i>Style décoratif
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="afficher_bordures" 
+                                               {% if config.afficher_bordures %}checked{% endif %}>
+                                        <label class="form-check-label" for="afficher_bordures">
+                                            <i class="bi bi-border-style me-1"></i>Bordures de découpe
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-danger w-100 btn-lg">
+                                    <i class="bi bi-play-fill me-2"></i>Générer le PDF
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Stats Card -->
+                    <div class="card mt-4">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-calculator me-1"></i>Estimation
+                            </h6>
+                            <div id="estimation">
+                                <small class="text-muted">
+                                    <div>Pages estimées: <span id="pages-estimees">48</span></div>
+                                    <div>Taille par papier: ~5.1×3.0cm</div>
+                                    <div>Format: A4 (21×29.7cm)</div>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview/Result Panel -->
+                <div class="col-lg-8">
+                    <!-- Initial State -->
+                    <div class="card generator-card" id="preview-card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-eye me-2"></i>Aperçu
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="preview-area d-flex align-items-center justify-content-center">
+                                <div class="text-center">
+                                    <i class="bi bi-file-earmark-pdf text-muted" style="font-size: 4rem;"></i>
+                                    <p class="text-muted mt-3">
+                                        Configurez vos paramètres et cliquez sur "Générer le PDF"<br>
+                                        pour créer votre document
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress State -->
+                    <div class="card generator-card progress-container" id="progress-card">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">
+                                <i class="bi bi-hourglass-split me-2"></i>Génération en cours...
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-warning mb-3" role="status" style="width: 3rem; height: 3rem;">
+                                    <span class="visually-hidden">Génération...</span>
+                                </div>
+                                <p class="mb-3">Création du PDF en cours...</p>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
+                                         role="progressbar" style="width: 100%"></div>
+                                </div>
+                                <small class="text-muted mt-2 d-block" id="progress-text">
+                                    Initialisation...
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Success State -->
+                    <div class="card generator-card result-container" id="result-card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-check-circle-fill me-2"></i>PDF généré avec succès !
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row" id="result-content">
+                                <!-- Le contenu sera injecté par JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Mise à jour des estimations en temps réel
+        function updateEstimations() {
+            const nombreVersets = parseInt(document.getElementById('nombre_versets').value);
+            const papiersLigne = parseInt(document.getElementById('papiers_ligne').value);
+            const papiersColonne = parseInt(document.getElementById('papiers_colonne').value);
+            
+            const papiersParPage = papiersLigne * papiersColonne;
+            const pagesEstimees = Math.ceil(nombreVersets / papiersParPage);
+            
+            document.getElementById('papiers-par-page').textContent = papiersParPage;
+            document.getElementById('pages-estimees').textContent = pagesEstimees;
+        }
+
+        // Écouteurs d'événements pour la mise à jour en temps réel
+        ['nombre_versets', 'papiers_ligne', 'papiers_colonne'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateEstimations);
+        });
+
+        // Gestion du formulaire
+        document.getElementById('pdf-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Afficher l'état de progression
+            document.getElementById('preview-card').style.display = 'none';
+            document.getElementById('result-card').style.display = 'none';
+            document.getElementById('progress-card').style.display = 'block';
+            
+            // Préparer les données
+            const formData = {
+                nombre_versets: parseInt(document.getElementById('nombre_versets').value),
+                papiers_par_ligne: parseInt(document.getElementById('papiers_ligne').value),
+                papiers_par_colonne: parseInt(document.getElementById('papiers_colonne').value),
+                afficher_numeros: document.getElementById('afficher_numeros').checked,
+                style_decoratif: document.getElementById('style_decoratif').checked,
+                afficher_bordures: document.getElementById('afficher_bordures').checked
+            };
+
+            try {
+                document.getElementById('progress-text').textContent = 'Envoi de la requête...';
+                
+                const response = await fetch('/api/generate-pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Afficher le résultat
+                    document.getElementById('progress-card').style.display = 'none';
+                    document.getElementById('result-card').style.display = 'block';
+                    
+                    document.getElementById('result-content').innerHTML = `
+                        <div class="col-md-8">
+                            <h6><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>${result.filename}</h6>
+                            <div class="row mt-3">
+                                <div class="col-sm-6">
+                                    <small class="text-muted">
+                                        <i class="bi bi-123 me-1"></i>Versets: <strong>${result.versets}</strong>
+                                    </small>
+                                </div>
+                                <div class="col-sm-6">
+                                    <small class="text-muted">
+                                        <i class="bi bi-hdd me-1"></i>Taille: <strong>${formatFileSize(result.size)}</strong>
+                                    </small>
+                                </div>
+                            </div>
+                            <p class="text-success mt-2 mb-0">
+                                <i class="bi bi-check-circle-fill me-1"></i>${result.message}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="/download/${result.filename}" class="btn btn-success btn-lg">
+                                <i class="bi bi-download me-2"></i>Télécharger
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                // Afficher l'erreur
+                document.getElementById('progress-card').style.display = 'none';
+                document.getElementById('preview-card').style.display = 'block';
+                
+                alert('Erreur lors de la génération: ' + error.message);
+            }
+        });
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Initialiser les estimations
+        updateEstimations();
+    </script>
+</body>
+</html>

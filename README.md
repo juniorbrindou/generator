@@ -1,23 +1,61 @@
-# Générateur de Versets - PDF pour 1000 Petits Papiers
+# 🚀 Bulk Generator
 
-Un générateur Python qui crée des PDF optimisés contenant 1000 petits papiers avec des versets bibliques en français, parfait pour accompagner des beignets ou autres moments de partage.
+**Générateur puissant pour créer des PDF et CSV en masse**
 
-## 🎯 Résultat Final
-- **1000 versets bibliques numérotés** répartis sur environ 48 pages A4 (optimisé !)
-- **Format des papiers**: 5.1cm × 3.0cm (parfait pour la découpe)
-- **Mise en page optimisée**: 3 colonnes × 7 lignes = 21 papiers par page
-- **Numérotation** : Chaque verset a son numéro (#1 à #1000)
-- **Design élégant** : Bordures, marques de découpe, point décoratif
-- **Optimisé impression N&B** : Gris pour les éléments secondaires
+Un outil polyvalent qui permet de générer :
+- **PDF de versets bibliques** : Jusqu'à 1000+ petits papiers avec versets inspirants
+- **Fichiers CSV en masse** : Jusqu'à 1M+ de lignes avec données réalistes ou séquentielles
 
-## 🚀 Démarrage Rapide
+## ✨ Fonctionnalités
 
-### ⚡ En 4 étapes simples :
+### 📄 Générateur PDF
+- ✅ Génération de milliers de petits papiers avec versets bibliques
+- ✅ Numérotation automatique (#1 à #1000)
+- ✅ Optimisé pour impression et découpe (format A4)
+- ✅ Bordures et embellissements pour impression noir & blanc
+- ✅ Configuration flexible de la mise en page
 
-1. **Aperçu rapide** (pour voir la numérotation) :
-   ```bash
-   python apercu.py
-   ```
+### 📊 Générateur CSV  
+- ✅ Génération de centaines de milliers de lignes
+- ✅ Données réalistes avec Faker (noms, emails, téléphones français)
+- ✅ Données séquentielles (Nom001, Nom002, etc.)
+- ✅ Colonnes personnalisables
+- ✅ Export UTF-8 compatible Excel
+
+### 🌐 Interface Web
+- ✅ Interface moderne et intuitive
+- ✅ Configuration en temps réel
+- ✅ Aperçu des données avant génération
+- ✅ Gestion des fichiers générés
+- ✅ Téléchargement direct des fichiers
+
+## 🚀 Démarrage rapide
+
+### Installation
+```bash
+git clone [votre-repo]
+cd bulk-generator
+pip install -r requirements.txt
+```
+
+### Utilisation
+
+#### Interface Web (Recommandé)
+```bash
+python lancer_web.py
+```
+Puis ouvrez http://localhost:5000 dans votre navigateur.
+
+#### Ligne de commande
+```bash
+# Générer un PDF de 1000 versets
+python generateur_versets.py
+
+# Tests avec moins de versets
+python demo_simple.py    # 6 versets
+python test_final.py     # 20 versets  
+python apercu.py         # 100 versets
+```
    → Génère `APERCU_numerotation.pdf` (6 versets) pour voir le rendu final
 
 2. **Test de démonstration** (OBLIGATOIRE) :
