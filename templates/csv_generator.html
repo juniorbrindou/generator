@@ -35,12 +35,26 @@
             padding: 5px 12px;
             margin: 2px;
             font-size: 0.875rem;
+            position: relative;
         }
         .column-tag .remove-btn {
             margin-left: 8px;
             color: #dc3545;
             cursor: pointer;
             font-weight: bold;
+        }
+        .column-tag .unique-indicator {
+            margin-left: 4px;
+            margin-right: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        .column-tag .unique-indicator.unique-active {
+            color: #198754;
+        }
+        .column-tag[data-unique="true"] {
+            background-color: #d1e7dd;
+            border: 1px solid #badbcc;
         }
     </style>
 </head>
@@ -109,6 +123,26 @@
                                 </div>
 
                                 <div class="mb-3">
+                                    <label for="separateur_csv" class="form-label">
+                                        <i class="bi bi-text-paragraph me-1"></i>Séparateur CSV
+                                    </label>
+                                    <select class="form-select" id="separateur_csv">
+                                        <option value="," selected>Virgule (,) - Standard</option>
+                                        <option value=";">Point-virgule (;) - Excel France</option>
+                                        <option value="|">Pipe (|) - Alternative</option>
+                                        <option value="	">Tabulation (	) - TSV</option>
+                                    </select>
+                                    <div class="form-text">
+                                        <small>
+                                            <strong>Virgule:</strong> Format standard international<br>
+                                            <strong>Point-virgule:</strong> Compatible Excel français<br>
+                                            <strong>Pipe:</strong> Pour données avec virgules<br>
+                                            <strong>Tabulation:</strong> Format TSV
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
                                     <label class="form-label">
                                         <i class="bi bi-columns me-1"></i>Colonnes du CSV
                                     </label>
@@ -121,16 +155,25 @@
                                     </div>
                                     <div id="colonnes-container">
                                         <!-- Les colonnes seront ajoutées ici -->
-                                        <span class="column-tag">
+                                        <span class="column-tag" data-unique="false">
                                             Nom
+                                            <span class="unique-indicator" onclick="toggleUnique(this)" title="Cliquez pour rendre unique">
+                                                <i class="bi bi-asterisk text-muted"></i>
+                                            </span>
                                             <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
                                         </span>
-                                        <span class="column-tag">
+                                        <span class="column-tag" data-unique="true">
                                             Email
+                                            <span class="unique-indicator unique-active" onclick="toggleUnique(this)" title="Champ unique">
+                                                <i class="bi bi-check-circle text-success"></i>
+                                            </span>
                                             <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
                                         </span>
-                                        <span class="column-tag">
+                                        <span class="column-tag" data-unique="false">
                                             Telephone
+                                            <span class="unique-indicator" onclick="toggleUnique(this)" title="Cliquez pour rendre unique">
+                                                <i class="bi bi-asterisk text-muted"></i>
+                                            </span>
                                             <span class="remove-btn" onclick="supprimerColonne(this)">×</span>
                                         </span>
                                     </div>
@@ -143,6 +186,10 @@
                                             <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="ajouterColonneSuggeree('CodePostal')">Code Postal</button>
                                             <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="ajouterColonneSuggeree('Entreprise')">Entreprise</button>
                                             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="ajouterColonneSuggeree('DateNaissance')">Date</button>
+                                        </small>
+                                        <br><small class="text-success">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            <strong>Champs uniques:</strong> Cliquez sur <i class="bi bi-asterisk"></i> pour garantir l'unicité (emails, IDs, etc.)
                                         </small>
                                     </div>
                                 </div>
@@ -284,17 +331,57 @@
             
             // Vérifier si la colonne existe déjà
             const existant = Array.from(container.children).some(child => 
-                child.textContent.replace('×', '').trim() === nom
+                child.textContent.replace('×', '').replace('✓', '').replace('*', '').trim() === nom
             );
             
             if (!existant) {
                 const span = document.createElement('span');
                 span.className = 'column-tag';
-                span.innerHTML = `${nom} <span class="remove-btn" onclick="supprimerColonne(this)">×</span>`;
+                span.setAttribute('data-unique', 'false');
+                
+                // Définir l'unicité par défaut pour certains champs
+                const champsUniques = ['email', 'id', 'username', 'login', 'cle', 'key'];
+                const isUnique = champsUniques.some(field => nom.toLowerCase().includes(field));
+                
+                if (isUnique) {
+                    span.setAttribute('data-unique', 'true');
+                }
+                
+                span.innerHTML = `${nom}
+                    <span class="unique-indicator ${isUnique ? 'unique-active' : ''}" onclick="toggleUnique(this)" title="${isUnique ? 'Champ unique' : 'Cliquez pour rendre unique'}">
+                        <i class="bi bi-${isUnique ? 'check-circle text-success' : 'asterisk text-muted'}"></i>
+                    </span>
+                    <span class="remove-btn" onclick="supprimerColonne(this)">×</span>`;
                 container.appendChild(span);
                 
                 updateEstimations();
                 updatePreview();
+            }
+        }
+
+        function toggleUnique(element) {
+            const columnTag = element.parentElement;
+            const isUnique = columnTag.getAttribute('data-unique') === 'true';
+            
+            // Basculer l'état
+            columnTag.setAttribute('data-unique', !isUnique ? 'true' : 'false');
+            
+            // Mettre à jour l'apparence
+            const icon = element.querySelector('i');
+            if (!isUnique) {
+                // Devient unique
+                element.classList.add('unique-active');
+                element.setAttribute('title', 'Champ unique - Cliquez pour désactiver');
+                icon.className = 'bi bi-check-circle text-success';
+                columnTag.style.backgroundColor = '#d1e7dd';
+                columnTag.style.border = '1px solid #badbcc';
+            } else {
+                // N'est plus unique
+                element.classList.remove('unique-active');
+                element.setAttribute('title', 'Cliquez pour rendre unique');
+                icon.className = 'bi bi-asterisk text-muted';
+                columnTag.style.backgroundColor = '#e9ecef';
+                columnTag.style.border = 'none';
             }
         }
 
@@ -313,9 +400,14 @@
 
         function obtenirColonnes() {
             const container = document.getElementById('colonnes-container');
-            return Array.from(container.children).map(child => 
-                child.textContent.replace('×', '').trim()
-            ).filter(nom => nom);
+            return Array.from(container.children).map(child => ({
+                nom: child.textContent.replace('×', '').replace('✓', '').replace('*', '').trim(),
+                unique: child.getAttribute('data-unique') === 'true'
+            })).filter(col => col.nom);
+        }
+
+        function obtenirNomsColonnes() {
+            return obtenirColonnes().map(col => col.nom);
         }
 
         // Mise à jour des estimations
@@ -335,7 +427,7 @@
 
         // Mise à jour de l'aperçu
         function updatePreview() {
-            const colonnes = obtenirColonnes();
+            const colonnes = obtenirNomsColonnes();
             const formatDonnees = document.getElementById('format_donnees').value;
             
             // Mettre à jour l'en-tête
@@ -404,7 +496,8 @@
             const formData = {
                 nombre_lignes: parseInt(document.getElementById('nombre_lignes').value),
                 colonnes: colonnes,
-                format: document.getElementById('format_donnees').value
+                format: document.getElementById('format_donnees').value,
+                separateur: document.getElementById('separateur_csv').value
             };
 
             try {

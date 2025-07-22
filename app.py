@@ -92,11 +92,17 @@ def api_generate_csv():
         
         # Paramètres de génération CSV
         nombre_lignes = int(data.get('nombre_lignes', 1000))
-        colonnes = data.get('colonnes', ['Nom', 'Email', 'Telephone'])
+        colonnes_config = data.get('colonnes', [{'nom': 'Nom', 'unique': False}, {'nom': 'Email', 'unique': True}, {'nom': 'Telephone', 'unique': False}])
         format_donnees = data.get('format', 'fake')  # fake, sequence, custom
+        separateur = data.get('separateur', ',')
+        
+        # Gérer le format des colonnes (rétrocompatibilité)
+        if colonnes_config and isinstance(colonnes_config[0], str):
+            # Ancien format (liste de strings)
+            colonnes_config = [{'nom': col, 'unique': False} for col in colonnes_config]
         
         # Générer le CSV
-        csv_path = generer_csv_bulk(nombre_lignes, colonnes, format_donnees)
+        csv_path = generer_csv_bulk(nombre_lignes, colonnes_config, format_donnees, separateur)
         
         file_size = os.path.getsize(csv_path)
         
@@ -161,73 +167,74 @@ def api_list_files():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def generer_csv_bulk(nombre_lignes, colonnes, format_donnees):
+def generer_csv_bulk(nombre_lignes, colonnes_config, format_donnees, separateur=','):
     """Génère un fichier CSV avec des données en masse"""
     from faker import Faker
     fake = Faker('fr_FR')  # Données en français
     
+    # Extraire les noms des colonnes
+    colonnes_noms = [col['nom'] if isinstance(col, dict) else col for col in colonnes_config]
+    
     # Créer le nom du fichier
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'bulk_data_{nombre_lignes}_lignes_{timestamp}.csv'
+    extension = 'tsv' if separateur == '\t' else 'csv'
+    filename = f'bulk_data_{nombre_lignes}_lignes_{timestamp}.{extension}'
     csv_path = os.path.join('output', filename)
     
     # S'assurer que le dossier output existe
     if not os.path.exists('output'):
         os.makedirs('output')
     
+    # Dictionnaires pour garantir l'unicité
+    valeurs_uniques = {}
+    for col_config in colonnes_config:
+        if isinstance(col_config, dict) and col_config.get('unique', False):
+            valeurs_uniques[col_config['nom']] = set()
+    
     # Générer les données
     with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.writer(csvfile)
+        # Utiliser le séparateur personnalisé
+        writer = csv.writer(csvfile, delimiter=separateur)
         
         # Écrire l'en-tête
-        writer.writerow(colonnes)
+        writer.writerow(colonnes_noms)
         
         # Générer les lignes de données
         for i in range(nombre_lignes):
             ligne = []
-            for colonne in colonnes:
-                colonne_lower = colonne.lower()
-                
-                if format_donnees == 'sequence':
-                    # Données séquentielles
-                    if 'nom' in colonne_lower:
-                        ligne.append(f'Nom{i+1:06d}')
-                    elif 'email' in colonne_lower or 'mail' in colonne_lower:
-                        ligne.append(f'user{i+1:06d}@example.com')
-                    elif 'tel' in colonne_lower or 'phone' in colonne_lower:
-                        ligne.append(f'06{i+1:08d}')
-                    elif 'id' in colonne_lower:
-                        ligne.append(i+1)
-                    else:
-                        ligne.append(f'{colonne}{i+1:06d}')
-                        
-                elif format_donnees == 'fake':
-                    # Données réalistes avec Faker
-                    if 'nom' in colonne_lower or 'name' in colonne_lower:
-                        ligne.append(fake.name())
-                    elif 'prenom' in colonne_lower or 'firstname' in colonne_lower:
-                        ligne.append(fake.first_name())
-                    elif 'email' in colonne_lower or 'mail' in colonne_lower:
-                        ligne.append(fake.email())
-                    elif 'tel' in colonne_lower or 'phone' in colonne_lower:
-                        ligne.append(fake.phone_number())
-                    elif 'adresse' in colonne_lower or 'address' in colonne_lower:
-                        ligne.append(fake.address().replace('\n', ', '))
-                    elif 'ville' in colonne_lower or 'city' in colonne_lower:
-                        ligne.append(fake.city())
-                    elif 'code' in colonne_lower and 'postal' in colonne_lower:
-                        ligne.append(fake.postcode())
-                    elif 'entreprise' in colonne_lower or 'company' in colonne_lower:
-                        ligne.append(fake.company())
-                    elif 'date' in colonne_lower:
-                        ligne.append(fake.date())
-                    elif 'id' in colonne_lower:
-                        ligne.append(i+1)
-                    else:
-                        ligne.append(fake.word())
+            
+            for col_config in colonnes_config:
+                if isinstance(col_config, dict):
+                    colonne = col_config['nom']
+                    est_unique = col_config.get('unique', False)
                 else:
-                    # Format personnalisé ou par défaut
-                    ligne.append(f'{colonne}_{i+1}')
+                    colonne = col_config
+                    est_unique = False
+                
+                colonne_lower = colonne.lower()
+                valeur = None
+                
+                # Générer la valeur selon le format
+                if format_donnees == 'sequence':
+                    valeur = generer_valeur_sequence(colonne, colonne_lower, i)
+                elif format_donnees == 'fake':
+                    valeur = generer_valeur_fake(fake, colonne, colonne_lower, i)
+                else:
+                    valeur = f'{colonne}_{i+1}'
+                
+                # Garantir l'unicité si nécessaire
+                if est_unique:
+                    tentatives = 0
+                    while valeur in valeurs_uniques[colonne] and tentatives < 100:
+                        if format_donnees == 'fake':
+                            valeur = generer_valeur_fake(fake, colonne, colonne_lower, i + tentatives * 1000)
+                        else:
+                            valeur = f"{valeur}_{tentatives:03d}"
+                        tentatives += 1
+                    
+                    valeurs_uniques[colonne].add(valeur)
+                
+                ligne.append(valeur)
             
             writer.writerow(ligne)
             
@@ -237,6 +244,44 @@ def generer_csv_bulk(nombre_lignes, colonnes, format_donnees):
     
     print(f"✅ CSV généré: {csv_path}")
     return csv_path
+
+def generer_valeur_sequence(colonne, colonne_lower, index):
+    """Génère une valeur séquentielle"""
+    if 'nom' in colonne_lower:
+        return f'Nom{(index+1):06d}'
+    elif 'email' in colonne_lower or 'mail' in colonne_lower:
+        return f'user{(index+1):06d}@example.com'
+    elif 'tel' in colonne_lower or 'phone' in colonne_lower:
+        return f'06{(index+1):08d}'
+    elif 'id' in colonne_lower:
+        return index + 1
+    else:
+        return f'{colonne}{(index+1):06d}'
+
+def generer_valeur_fake(fake, colonne, colonne_lower, index):
+    """Génère une valeur réaliste avec Faker"""
+    if 'nom' in colonne_lower or 'name' in colonne_lower:
+        return fake.name()
+    elif 'prenom' in colonne_lower or 'firstname' in colonne_lower:
+        return fake.first_name()
+    elif 'email' in colonne_lower or 'mail' in colonne_lower:
+        return fake.email()
+    elif 'tel' in colonne_lower or 'phone' in colonne_lower:
+        return fake.phone_number()
+    elif 'adresse' in colonne_lower or 'address' in colonne_lower:
+        return fake.address().replace('\n', ', ')
+    elif 'ville' in colonne_lower or 'city' in colonne_lower:
+        return fake.city()
+    elif 'code' in colonne_lower and 'postal' in colonne_lower:
+        return fake.postcode()
+    elif 'entreprise' in colonne_lower or 'company' in colonne_lower:
+        return fake.company()
+    elif 'date' in colonne_lower:
+        return fake.date()
+    elif 'id' in colonne_lower:
+        return index + 1
+    else:
+        return fake.word()
 
 if __name__ == '__main__':
     print("🌐 === BULK GENERATOR - INTERFACE WEB ===")
